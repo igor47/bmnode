@@ -3,3 +3,6 @@
 
 # for vscode users
 .vscode/
+
+# compiled python
+__pycache__/
