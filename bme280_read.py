@@ -1,22 +1,16 @@
 import smbus
 import bme280
+import time
 
-port = 1
-address = 0x76
-bus = smbus.SMBus(port)
+PORT = 1
+ADDRESS = 0x76
+BUS = smbus.SMBus(PORT)
 
-calibration_params = bme280.load_calibration_params(bus, address)
+CALIBRATION_PARAMS = bme280.load_calibration_params(BUS, ADDRESS)
 
-# the sample method will take a single reading and return a
-# compensated_reading object
-data = bme280.sample(bus, address, calibration_params)
-
-# the compensated_reading class has the following attributes
-print(data.id)
-print(data.timestamp)
-print(data.temperature)
-print(data.pressure)
-print(data.humidity)
-
-# there is a handy string representation too
-print(data)
+while True:
+    data = bme280.sample(BUS, ADDRESS, CALIBRATION_PARAMS)
+    print(data.temperature)
+    print(data.pressure)
+    print(data.humidity)
+    time.sleep(1)
