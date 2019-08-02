@@ -1,0 +1,5 @@
+# for type checking
+.mypy_cache/
+
+# for vscode users
+.vscode/
