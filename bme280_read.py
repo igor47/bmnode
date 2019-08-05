@@ -1,5 +1,5 @@
-import smbus
 import bme280
+import smbus2 as smbus
 import time
 
 
