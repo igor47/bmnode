@@ -1,9 +1,15 @@
 import bme280
+import logging
 import smbus2 as smbus
 import time
 
+from log_config import log_config
+
 
 class BME280:
+    # TODO: put this somewhere useful
+    LOG_OUTPUT_FILE = "hello.log"
+
     def __init__(self, port: int, address: int):
         self.port = port
         self.address = address
@@ -22,6 +28,14 @@ class BME280:
             )
         return self._calibration_params
 
+    @property
+    def log(self) -> logging.Logger:
+        if not hasattr(self, "_log"):
+            self._log = logging.getLogger("bme280")
+            handler = logging.FileHandler(self.LOG_OUTPUT_FILE)
+            self._log.addHandler(handler)
+        return self._log
+
     def sample(self) -> bme280.compensated_readings:
         return bme280.sample(self.bus, self.address, self.calibration_params)
 
@@ -30,10 +44,11 @@ PORT = 1
 ADDRESS = 0x76
 
 sensor = BME280(PORT, ADDRESS)
+log_config(logging.DEBUG)
 
 while True:
     data = sensor.sample()
-    print(data.temperature)
-    print(data.pressure)
-    print(data.humidity)
+    sensor.log.info(
+        f"{data.timestamp},{data.temperature},{data.pressure},{data.humidity}"
+    )
     time.sleep(1)
