@@ -6,3 +6,6 @@
 
 # compiled python
 __pycache__/
+
+# vim swap files
+*.sw?
