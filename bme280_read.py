@@ -3,6 +3,7 @@ import logging
 import logging.handlers
 import smbus2 as smbus
 import time
+from typing import Any, Dict
 
 from log_config import log_config
 
@@ -44,8 +45,14 @@ class BME280:
             self._log = logging.getLogger("bme280")
         return self._log
 
-    def sample(self) -> bme280.compensated_readings:
-        return bme280.sample(self.bus, self.address, self.calibration_params)
+    def sample(self) -> Dict[str, Any]:
+        data = bme280.sample(self.bus, self.address, self.calibration_params)
+        return {
+            "timestamp": data.timestamp.isoformat(),
+            "temperature": data.temperature,
+            "pressure": data.pressure,
+            "humidity": data.humidity,
+        }
 
 
 PORT = 1
@@ -56,7 +63,5 @@ log_config(logging.DEBUG)
 
 while True:
     data = sensor.sample()
-    sensor.datalog.info(
-        f"{data.timestamp},{data.temperature},{data.pressure},{data.humidity}"
-    )
+    sensor.datalog.info(data)
     time.sleep(1)
