@@ -1,5 +1,6 @@
 import bme280
 import logging
+import logging.handlers
 import smbus2 as smbus
 import time
 
@@ -29,11 +30,18 @@ class BME280:
         return self._calibration_params
 
     @property
+    def datalog(self) -> logging.Logger:
+        if not hasattr(self, "_datalog"):
+            self._datalog = logging.getLogger("bme280.data")
+            # rotate log file every hour by default
+            handler = logging.handlers.TimedRotatingFileHandler(self.LOG_OUTPUT_FILE)
+            self._datalog.addHandler(handler)
+        return self._datalog
+
+    @property
     def log(self) -> logging.Logger:
         if not hasattr(self, "_log"):
             self._log = logging.getLogger("bme280")
-            handler = logging.FileHandler(self.LOG_OUTPUT_FILE)
-            self._log.addHandler(handler)
         return self._log
 
     def sample(self) -> bme280.compensated_readings:
@@ -48,7 +56,7 @@ log_config(logging.DEBUG)
 
 while True:
     data = sensor.sample()
-    sensor.log.info(
+    sensor.datalog.info(
         f"{data.timestamp},{data.temperature},{data.pressure},{data.humidity}"
     )
     time.sleep(1)
