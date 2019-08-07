@@ -5,7 +5,7 @@ import smbus2 as smbus
 import time
 from typing import Any, Dict
 
-from log_config import log_config
+from log_config import log_config, BMNodeFormatter
 
 
 class BME280:
@@ -33,7 +33,7 @@ class BME280:
     @property
     def datalog(self) -> logging.Logger:
         if not hasattr(self, "_datalog"):
-            self._datalog = logging.getLogger("bme280.data")
+            self._datalog = logging.getLogger("bme280data")
             # rotate log file every hour by default
             handler = logging.handlers.TimedRotatingFileHandler(self.LOG_OUTPUT_FILE)
             self._datalog.addHandler(handler)
@@ -42,7 +42,10 @@ class BME280:
     @property
     def log(self) -> logging.Logger:
         if not hasattr(self, "_log"):
-            self._log = logging.getLogger("bme280")
+            self._log = logging.getLogger("bme280msg")
+            stream = logging.StreamHandler()
+            stream.setFormatter(BMNodeFormatter())
+            self._log.addHandler(stream)
         return self._log
 
     def sample(self) -> Dict[str, Any]:
@@ -64,4 +67,5 @@ log_config(logging.DEBUG)
 while True:
     data = sensor.sample()
     sensor.datalog.info(data)
+    sensor.log.debug("got data")
     time.sleep(1)

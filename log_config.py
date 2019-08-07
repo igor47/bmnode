@@ -6,9 +6,5 @@ class BMNodeFormatter(logging.Formatter):
         return f"{prefix} : {record.message}"
 
 def log_config(level: int = logging.DEBUG) -> None:
-    stream = logging.StreamHandler()
-    stream.setFormatter(BMNodeFormatter())
-
     root = logging.getLogger()
-    root.addHandler(stream)
     root.setLevel(level)
