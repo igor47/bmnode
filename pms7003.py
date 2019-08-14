@@ -14,198 +14,153 @@ https://wikidocs.net/book/1
 PMS7003 datasheet
 http://eleparts.co.kr/data/_gextends/good-pdf/201803/good-pdf-4208690-1.pdf
 """
+import logging
 import serial
 import struct
+from typing import NamedTuple
+
+class PMSData(NamedTuple):
+    header_high: int    # 0x42
+    header_low: int     # 0x4d
+    frame_length: int   # 2x1(data+check bytes)
+    pm1_0_cf1: int      # PM1.0 concentration unit μ g/m3（CF=1，standard particle）
+    pm2_5_cf1: int      # PM2.5 concentration unit μ g/m3（CF=1，standard particle）
+    pm10_0_cf1: int     # PM10 concentration unit μ g/m3（CF=1，standard particle）
+    pm1_0_atm: int      # PM1.0 concentration unit μ g/m3（under atmospheric environment）
+    pm2_5_atm: int      # PM2.5 concentration unit μ g/m3（under atmospheric environment）
+    pm10_0_atm: int     # PM10 concentration unit μ g/m3  (under atmospheric environment)
+    count_0_3: int      # number of particles with diameter beyond 0.3 um in 0.1 L of air.
+    count_0_5: int      # number of particles with diameter beyond 0.5 um in 0.1 L of air.
+    count_1_0: int      # number of particles with diameter beyond 1.0 um in 0.1 L of air.
+    count_2_5: int      # number of particles with diameter beyond 2.5 um in 0.1 L of air.
+    count_5_0: int      # number of particles with diameter beyond 5.0 um in 0.1 L of air.
+    count_10_0: int     # indicates the number of particles with diameter beyond 10 um in 0.1 L of air.
+    reserved: int       # reserved
+    checksum: int       # checksum
+
+PMSStruct = struct.Struct("!2B15H")
+
+# all the data as unsigned ints for checksum calculation
+ChecksumStruct = struct.Struct("!30BH")
 
 class PMS7003(object):
 
     # PMS7003 protocol data (HEADER 2byte + 30byte)
     PMS_7003_PROTOCOL_SIZE = 32
 
-    # PMS7003 data list
-    HEADER_HIGH = 0  # 0x42
-    HEADER_LOW = 1  # 0x4d
-    FRAME_LENGTH = 2  # 2x13+2(data+check bytes)
-    DUST_PM1_0_CF1 = 3  # PM1.0 concentration unit μ g/m3（CF=1，standard particle）
-    DUST_PM2_5_CF1 = 4  # PM2.5 concentration unit μ g/m3（CF=1，standard particle）
-    DUST_PM10_0_CF1 = 5  # PM10 concentration unit μ g/m3（CF=1，standard particle）
-    DUST_PM1_0_ATM = 6  # PM1.0 concentration unit μ g/m3（under atmospheric environment）
-    DUST_PM2_5_ATM = 7  # PM2.5 concentration unit μ g/m3（under atmospheric environment）
-    DUST_PM10_0_ATM = (
-        8
-    )  # PM10 concentration unit μ g/m3  (under atmospheric environment)
-    DUST_AIR_0_3 = (
-        9
-    )  # indicates the number of particles with diameter beyond 0.3 um in 0.1 L of air.
-    DUST_AIR_0_5 = (
-        10
-    )  # indicates the number of particles with diameter beyond 0.5 um in 0.1 L of air.
-    DUST_AIR_1_0 = (
-        11
-    )  # indicates the number of particles with diameter beyond 1.0 um in 0.1 L of air.
-    DUST_AIR_2_5 = (
-        12
-    )  # indicates the number of particles with diameter beyond 2.5 um in 0.1 L of air.
-    DUST_AIR_5_0 = (
-        13
-    )  # indicates the number of particles with diameter beyond 5.0 um in 0.1 L of air.
-    DUST_AIR_10_0 = (
-        14
-    )  # indicates the number of particles with diameter beyond 10 um in 0.1 L of air.
-    RESERVEDF = 15  # Data13 Reserved high 8 bits
-    RESERVEDB = 16  # Data13 Reserved low 8 bits
-    CHECKSUM = 17  # Checksum code
+    HEADER_HIGH = int('0x42', 16)
+    HEADER_LOW = int('0x4d', 16)
 
-    # header check
-    def header_chk(self, buffer):
+    # UART / USB Serial : 'dmesg | grep ttyUSB'
+    USB0 = "/dev/ttyUSB0"
+    UART = "/dev/ttyAMA0"
+    S0 = "/dev/serial0"
 
-        if buffer[self.HEADER_HIGH] == 66 and buffer[self.HEADER_LOW] == 77:
-            return True
+    # USE PORT
+    SERIAL_PORT = S0
 
-        else:
-            return False
+    # Baud Rate
+    SERIAL_SPEED = 9600
 
-    # chksum value calculation
-    def chksum_cal(self, buffer):
+    def __init__(self):
+        self.buffer: bytes = b''
+        self.log = logging.getLogger('pms7003')
 
-        buffer = buffer[0 : self.PMS_7003_PROTOCOL_SIZE]
+    @property
+    def serial(self):
+        """Serial port interface"""
+        if not hasattr(self, "_serial"):
+            self._serial = serial.Serial(self.SERIAL_PORT, self.SERIAL_SPEED, timeout=1)
 
-        # data unpack (Byte -> Tuple (30 x unsigned char <B> + unsigned short <H>))
-        chksum_data = struct.unpack("!30BH", buffer)
+        return self._serial
 
-        chksum = 0
+    def read(self) -> PMSData:
+        """Returns a PMS reading"""
+        self.serial.flushInput()
 
-        for i in range(30):
-            chksum = chksum + chksum_data[i]
+        # fill the buffer
+        data = None
+        while data is None:
+            # read until we have at least the right number of bytes
+            while len(self.buffer) < self.PMS_7003_PROTOCOL_SIZE:
+                self.buffer += self.serial.read(1024)
 
-        return chksum
+            # consume until buffer is nearly-empty
+            while len(self.buffer) >= self.PMS_7003_PROTOCOL_SIZE:
+                buffer = self.buffer[:self.PMS_7003_PROTOCOL_SIZE]
+                maybe_data = PMSData._make(PMSStruct.unpack(buffer))
 
+                # looks like the start of a packet, lets advance the buffer
+                if self.header_valid(maybe_data):
+                    self.log.debug("found valid header")
+                    self.buffer = self.buffer[self.PMS_7003_PROTOCOL_SIZE:]
 
-    # checksum check
-    def chksum_chk(self, buffer):
+                    if self.checksum_valid(buffer):
+                        data = maybe_data
+                    else:
+                        self.log.warning("checksum does not match")
+                        data = None
 
-        chk_result = self.chksum_cal(buffer)
-
-        chksum_buffer = buffer[30 : self.PMS_7003_PROTOCOL_SIZE]
-        chksum = struct.unpack("!H", chksum_buffer)
-
-        if chk_result == chksum[0]:
-            return True
-
-        else:
-            return False
-
-    # protocol size(small) check
-    def protocol_size_chk(self, buffer):
-
-        if self.PMS_7003_PROTOCOL_SIZE <= len(buffer):
-            return True
-
-        else:
-            return False
-
-    # protocol check
-    def protocol_chk(self, buffer):
-
-        if self.protocol_size_chk(buffer):
-
-            if self.header_chk(buffer):
-
-                if self.chksum_chk(buffer):
-
-                    return True
+                # invalid header, we might be mid-packet, advance by 1
                 else:
-                    print("Chksum err")
-            else:
-                print("Header err")
-        else:
-            print("Protol err")
-
-        return False
-
-
-    # unpack data
-    # <Tuple (13 x unsigned short <H> + 2 x unsigned char <B> + unsigned short <H>)>
-    def unpack_data(self, buffer):
-
-        buffer = buffer[0 : self.PMS_7003_PROTOCOL_SIZE]
-
-        # data unpack (Byte -> Tuple (13 x unsigned short <H> + 2 x unsigned char <B> + unsigned short <H>))
-        data = struct.unpack("!2B13H2BH", buffer)
+                    self.buffer = self.buffer[1:]
+                    data = None
 
         return data
 
+    @classmethod
+    def header_valid(cls, data: PMSData):
+        """make sure the header is valid"""
+        return data.header_high == cls.HEADER_HIGH and data.header_low == cls.HEADER_LOW
 
-    def print_serial(self, buffer):
+    @classmethod
+    def checksum_valid(self, buffer: bytes) -> bool:
+        """make sure the checksum of the buffer is valid"""
+        chksum_data = ChecksumStruct.unpack(buffer)
 
-        chksum = self.chksum_cal(buffer)
-        data = self.unpack_data(buffer)
+        # sum every unsigned int (omit the final short)
+        calculated = sum(chksum_data[:-1])
 
+        # grab the send value
+        sent = chksum_data[-1]
+
+        return calculated == sent
+
+    def print(self, data: PMSData) -> None:
         print(
             "============================================================================"
         )
         print(
             "Header : %c %c \t\t | Frame length : %s"
-            % (data[self.HEADER_HIGH], data[self.HEADER_LOW], data[self.FRAME_LENGTH])
+            % (data.header_high, data.header_low, data.frame_length)
         )
         print(
             "PM 1.0 (CF=1) : %s\t | PM 1.0 : %s"
-            % (data[self.DUST_PM1_0_CF1], data[self.DUST_PM1_0_ATM])
+            % (data.pm1_0_cf1, data.pm1_0_atm)
         )
         print(
             "PM 2.5 (CF=1) : %s\t | PM 2.5 : %s"
-            % (data[self.DUST_PM2_5_CF1], data[self.DUST_PM2_5_ATM])
+            % (data.pm2_5_cf1, data.pm2_5_atm)
         )
         print(
             "PM 10.0 (CF=1) : %s\t | PM 10.0 : %s"
-            % (data[self.DUST_PM10_0_CF1], data[self.DUST_PM10_0_ATM])
+            % (data.pm10_0_cf1, data.pm10_0_atm)
         )
-        print("0.3um in 0.1L of air : %s" % (data[self.DUST_AIR_0_3]))
-        print("0.5um in 0.1L of air : %s" % (data[self.DUST_AIR_0_5]))
-        print("1.0um in 0.1L of air : %s" % (data[self.DUST_AIR_1_0]))
-        print("2.5um in 0.1L of air : %s" % (data[self.DUST_AIR_2_5]))
-        print("5.0um in 0.1L of air : %s" % (data[self.DUST_AIR_5_0]))
-        print("10.0um in 0.1L of air : %s" % (data[self.DUST_AIR_10_0]))
-        print(
-            "Reserved F : %s | Reserved B : %s"
-            % (data[self.RESERVEDF], data[self.RESERVEDB])
-        )
-        print(
-            "CHKSUM : %s | read CHKSUM : %s | CHKSUM result : %s"
-            % (chksum, data[self.CHECKSUM], chksum == data[self.CHECKSUM])
-        )
+        print("0.3um in 0.1L of air : %s" % (data.count_0_3))
+        print("0.5um in 0.1L of air : %s" % (data.count_0_5))
+        print("1.0um in 0.1L of air : %s" % (data.count_1_0))
+        print("2.5um in 0.1L of air : %s" % (data.count_2_5))
+        print("5.0um in 0.1L of air : %s" % (data.count_5_0))
+        print("10.0um in 0.1L of air : %s" % (data.count_10_0))
+
+        print("Reserved F : %s" % data.reserved)
+        print("CHKSUM : %s" % data.checksum)
         print(
             "============================================================================"
         )
 
-
-# UART / USB Serial : 'dmesg | grep ttyUSB'
-USB0 = "/dev/ttyUSB0"
-UART = "/dev/ttyAMA0"
-S0 = "/dev/serial0"
-
-# USE PORT
-SERIAL_PORT = S0
-
-# Baud Rate
-Speed = 9600
-
-
-# example
 if __name__ == "__main__":
-
-    # serial setting
-    ser = serial.Serial(SERIAL_PORT, Speed, timeout=1)
-
-    dust = PMS7003()
-
+    pms = PMS7003()
     while True:
-        ser.flushInput()
-        buffer = ser.read(1024)
-
-        if dust.protocol_chk(buffer):
-            print("DATA read success")
-            dust.print_serial(buffer)
-
-        else:
-            print("DATA read fail...")
+        data = pms.read()
+        pms.print(data)
