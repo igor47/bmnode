@@ -182,9 +182,10 @@ class PMS7003(object):
 # UART / USB Serial : 'dmesg | grep ttyUSB'
 USB0 = "/dev/ttyUSB0"
 UART = "/dev/ttyAMA0"
+S0 = "/dev/serial0"
 
 # USE PORT
-SERIAL_PORT = UART
+SERIAL_PORT = S0
 
 # Baud Rate
 Speed = 9600
@@ -208,4 +209,3 @@ if __name__ == "__main__":
 
         else:
             print("DATA read fail...")
-            ser.close()
