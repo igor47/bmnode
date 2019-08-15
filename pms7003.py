@@ -57,20 +57,24 @@ class PMS7003(object):
     S0 = "/dev/serial0"
 
     # USE PORT
-    SERIAL_PORT = S0
+    DEFAULT_PORT = S0
 
     # Baud Rate
     SERIAL_SPEED = 9600
 
-    def __init__(self):
+    def __init__(self, port: str = DEFAULT_PORT):
+        self.port = port
         self.buffer: bytes = b''
-        self.log = logging.getLogger('pms7003')
+        self.log = logging.getLogger(str(self))
+
+    def __str__(self):
+        return f"<PMS7003 on {self.port}>"
 
     @property
     def serial(self):
         """Serial port interface"""
         if not hasattr(self, "_serial"):
-            self._serial = serial.Serial(self.SERIAL_PORT, self.SERIAL_SPEED, timeout=1)
+            self._serial = serial.Serial(self.port, self.SERIAL_SPEED, timeout=1)
 
         return self._serial
 
@@ -107,6 +111,10 @@ class PMS7003(object):
                     data = None
 
         return data
+
+    def sample(self) -> Dict[str, Any]:
+        """Returns data ready to persist"""
+        return self.read().asdict()
 
     @classmethod
     def header_valid(cls, data: PMSData):
