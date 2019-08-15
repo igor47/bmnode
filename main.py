@@ -15,6 +15,7 @@ def main():
     devices = [
         BME280(),
         PMS7003(PMS7003.S0),
+        PMS7003(PMS7003.USB0),
     ]
 
     m = Monitor(devices)
