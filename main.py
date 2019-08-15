@@ -2,11 +2,9 @@
 
 import logging
 
+from devices import BME280, PMS7003
 from log_config import log_config
 from monitor import Monitor
-
-from bme280 import BME280
-from PMS7003 import PMS7003
 
 def main():
     log_config()

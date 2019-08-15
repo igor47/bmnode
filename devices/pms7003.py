@@ -17,7 +17,7 @@ http://eleparts.co.kr/data/_gextends/good-pdf/201803/good-pdf-4208690-1.pdf
 import logging
 import serial
 import struct
-from typing import NamedTuple
+from typing import Any, Dict, NamedTuple
 
 class PMSData(NamedTuple):
     header_high: int    # 0x42
@@ -67,11 +67,11 @@ class PMS7003(object):
         self.buffer: bytes = b''
         self.log = logging.getLogger(str(self))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"<PMS7003 on {self.port}>"
 
     @property
-    def serial(self):
+    def serial(self) -> serial.Serial:
         """Serial port interface"""
         if not hasattr(self, "_serial"):
             self._serial = serial.Serial(self.port, self.SERIAL_SPEED, timeout=1)
@@ -114,10 +114,10 @@ class PMS7003(object):
 
     def sample(self) -> Dict[str, Any]:
         """Returns data ready to persist"""
-        return self.read().asdict()
+        return self.read()._asdict()
 
     @classmethod
-    def header_valid(cls, data: PMSData):
+    def header_valid(cls, data: PMSData) -> bool:
         """make sure the header is valid"""
         return data.header_high == cls.HEADER_HIGH and data.header_low == cls.HEADER_LOW
 
