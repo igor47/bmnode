@@ -9,6 +9,9 @@ class Monitor:
     """Repeatedly logs data from all devices"""
     LOG_OUTPUT_FILE = "/data/monitor.log"
 
+    # avoid logging when we don't have real system time
+    MIN_TIMESTAMP = 1565827200  # August 15, 2019 12:00:00 AM
+
     def __init__(self, devices: List = []):
         self.devices = devices
         self.log = logging.getLogger("monitor")
@@ -16,10 +19,10 @@ class Monitor:
     @property
     def datalog(self) -> logging.Logger:
         if not hasattr(self, "_datalog"):
-            datalog = logging.getLogger("monitor_data")
+            datalog = logging.getLogger("monitor.data")
 
-            # remove existing handlers
-            datalog.handlers = []
+            # ignore any parent loggers
+            datalog.propagate = False
 
             # add a watched file handler; we expect that logrotate will
             # rotate the output log
@@ -41,4 +44,10 @@ class Monitor:
     def perform(self) -> Dict[str, Any]:
         """Continue generating and persisting log entries"""
         while True:
-            self.datalog.info(json.dumps(self.build_log_entry()))
+            entry = self.build_log_entry()
+            if entry['timestamp'] < self.MIN_TIMESTAMP:
+                self.log.warning(f"timestamp {entry['timestamp']} too small")
+                continue
+
+            # log the entry
+            self.datalog.info(json.dumps(entry))
