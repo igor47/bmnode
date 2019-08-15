@@ -1,4 +1,5 @@
 
+import json
 import logging.handlers
 import time
 from typing import Any, Dict, List
@@ -40,4 +41,4 @@ class Monitor:
     def perform(self) -> Dict[str, Any]:
         """Continue generating and persisting log entries"""
         while True:
-            self.datalog.info(self.build_log_entry())
+            self.datalog.info(json.dumps(self.build_log_entry()))

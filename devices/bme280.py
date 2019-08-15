@@ -17,7 +17,7 @@ class BME280:
         self.log = logging.getLogger(str(self))
 
     def __str__(self):
-        return "<BME280 on {self.address}>"
+        return f"<BME280 on {self.address}>"
 
     @property
     def calibration_params(self) -> bme280.params:
@@ -30,12 +30,10 @@ class BME280:
     def sample(self) -> Dict[str, Any]:
         data = bme280.sample(BUS, self.address, self.calibration_params)
         return {
-            "timestamp": data.timestamp.isoformat(),
             "temperature": data.temperature,
             "pressure": data.pressure,
             "humidity": data.humidity,
         }
-
 
 
 if __name__ == "__main__":
