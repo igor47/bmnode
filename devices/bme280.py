@@ -28,7 +28,10 @@ class BME280:
         return self._calibration_params
 
     def sample(self) -> Dict[str, Any]:
+        """returns a single reading as it should be persisted"""
+        # TODO: does this raise any exceptions? can we define a timeout?
         data = bme280.sample(BUS, self.address, self.calibration_params)
+
         return {
             "temperature": data.temperature,
             "pressure": data.pressure,

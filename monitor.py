@@ -4,6 +4,7 @@ import logging.handlers
 import time
 from typing import Any, Dict, List
 
+from devices import DeviceError
 
 class Monitor:
     """Repeatedly logs data from all devices"""
@@ -34,10 +35,29 @@ class Monitor:
 
         return self._datalog
 
+    def uptime(self) -> float:
+        """returns the system uptime, in seconds"""
+        # keep the file open to avoid having to re-open it each time
+        if not hasattr(self, '_uptime_file'):
+            self._uptime_file = open('/proc/uptime', 'r')
+
+        self._uptime_file.seek(0)
+        uptime_parts = self._uptime_file.read().split()  # see `man proc`
+
+        return float(uptime_parts[0])
+
     def build_log_entry(self) -> Dict[str, Any]:
         """Builds a log entry from the monitored devices"""
-        entry = {str(device):device.sample() for device in self.devices}
+        entry = {}
+        for device in self.devices:
+            try:
+                entry[str(device)] = device.sample()
+            except DeviceError as e:
+                self.log.warning(f"error sampling device {device}: {e}")
+                entry[str(device)] = {}
+
         entry['timestamp'] = time.time()
+        entry['uptime'] = self.uptime()
 
         return entry
 
@@ -45,6 +65,9 @@ class Monitor:
         """Continue generating and persisting log entries"""
         while True:
             entry = self.build_log_entry()
+
+            # basic check to make sure we're not logging bullshit timestamps
+            # (maybe the RTC didn't get initialized yet?)
             if entry['timestamp'] < self.MIN_TIMESTAMP:
                 self.log.warning(f"timestamp {entry['timestamp']} too small")
                 continue
