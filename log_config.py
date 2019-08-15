@@ -5,7 +5,7 @@ class BMNodeFormatter(logging.Formatter):
         prefix = "%(levelname)s %(name)s" % record.__dict__
         return f"{prefix} : {record.message}"
 
-def log_config(level: int = logging.DEBUG) -> None:
+def log_config(level: int = logging.INFO) -> None:
     root = logging.getLogger()
     root.setLevel(level)
 

@@ -114,7 +114,12 @@ class PMS7003(object):
 
     def sample(self) -> Dict[str, Any]:
         """Returns data ready to persist"""
-        return self.read()._asdict()
+        return {k: v for k, v in self.read()._asdict().items() if self.is_sampled(k)}
+
+    @classmethod
+    def is_sampled(cls, key):
+        """only include certain fields from the read dataframe"""
+        return key.startswith('pm') or key.startswith('count')
 
     @classmethod
     def header_valid(cls, data: PMSData) -> bool:
