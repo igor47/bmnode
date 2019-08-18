@@ -1,0 +1,15 @@
+[Unit]
+Description=Monitors and collects sensor data
+Requires=local-fs.target
+After=local-fs.target
+
+[Service]
+WorkingDirectory=/home/pi/current
+ExecStart=/home/pi/.virtualenvs/current/bin/python /home/pi/current/main.py
+RestartSec=5s
+Restart=always
+User=pi
+Group=pi
+
+[Install]
+WantedBy=multi-user.target
