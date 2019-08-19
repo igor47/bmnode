@@ -46,6 +46,14 @@ class Monitor:
 
         return float(uptime_parts[0])
 
+    def cpu_temperature(self) -> float:
+        """returns the cpu temperature"""
+        if not hasattr(self, '_cpu_temp_file'):
+            self._cpu_temp_file = open('/sys/class/thermal/thermal_zone0/temp', 'r')
+
+        self._cpu_temp_file.seek(0)
+        return float(self._cpu_temp_file.read().strip())
+
     def build_log_entry(self) -> Dict[str, Any]:
         """Builds a log entry from the monitored devices"""
         entry = {}
@@ -58,6 +66,7 @@ class Monitor:
 
         entry['timestamp'] = time.time()
         entry['uptime'] = self.uptime()
+        entry['cpu_temperature'] = self.cpu_temperature()
 
         return entry
 
