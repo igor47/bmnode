@@ -2,6 +2,7 @@
 from collections import defaultdict
 import json
 import logging.handlers
+import os
 import time
 from typing import Any, Dict, List
 
@@ -19,6 +20,19 @@ class Monitor:
         self.log = logging.getLogger("monitor")
 
         self.error_counts = defaultdict(lambda: 0)
+
+    @property
+    def has_rtc(self) -> bool:
+        """returns whether an RTC was ever present"""
+        if not hasattr(self, "_has_rtc"):
+            try:
+                os.stat('/dev/rtc0')
+            except FileNotFoundError:
+                self._has_rtc = False
+            else:
+                self._has_rtc = True
+
+        return self._has_rtc
 
     @property
     def datalog(self) -> logging.Logger:
@@ -74,6 +88,7 @@ class Monitor:
         entry['uptime'] = self.uptime()
         entry['cpu_temperature'] = self.cpu_temperature()
         entry['error_counts'] = self.error_counts
+        entry['has_rtc'] = self.has_rtc
 
         return entry
 
@@ -81,12 +96,4 @@ class Monitor:
         """Continue generating and persisting log entries"""
         while True:
             entry = self.build_log_entry()
-
-            # basic check to make sure we're not logging bullshit timestamps
-            # (maybe the RTC didn't get initialized yet?)
-            if entry['timestamp'] < self.MIN_TIMESTAMP:
-                self.log.warning(f"timestamp {entry['timestamp']} too small")
-                continue
-
-            # log the entry
             self.datalog.info(json.dumps(entry))
