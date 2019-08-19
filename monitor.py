@@ -1,4 +1,5 @@
 
+from collections import defaultdict
 import json
 import logging.handlers
 import time
@@ -16,6 +17,8 @@ class Monitor:
     def __init__(self, devices: List = []):
         self.devices = devices
         self.log = logging.getLogger("monitor")
+
+        self.error_counts = defaultdict(lambda: 0)
 
     @property
     def datalog(self) -> logging.Logger:
@@ -63,10 +66,14 @@ class Monitor:
             except DeviceError as e:
                 self.log.warning(f"error sampling device {device}: {e}")
                 entry[str(device)] = {}
+                self.error_counts[str(device)] += 1
+            else:
+                self.error_counts[str(device)] += 0
 
         entry['timestamp'] = time.time()
         entry['uptime'] = self.uptime()
         entry['cpu_temperature'] = self.cpu_temperature()
+        entry['error_counts'] = self.error_counts
 
         return entry
 
