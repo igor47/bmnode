@@ -63,6 +63,8 @@ class PMS7003(object):
         self.buffer: bytes = b""
         self.log = logging.getLogger(str(self))
 
+        self.checksum_errors = 0
+
     def __str__(self) -> str:
         return f"<PMS7003 on {self.port}>"
 
@@ -107,6 +109,7 @@ class PMS7003(object):
                         data = maybe_data
                     else:
                         self.log.warning("checksum does not match")
+                        self.checksum_errors += 1
                         data = None
 
                 # invalid header, we might be mid-packet, advance by 1
@@ -122,7 +125,11 @@ class PMS7003(object):
         if reading is None:
             raise DeviceError('could not obtain pms7003 reading')
 
-        return {k: v for k, v in reading._asdict().items() if self.is_sampled(k)}
+        entry = {k: v for k, v in reading._asdict().items() if self.is_sampled(k)}
+        entry['checksum_errors'] = self.checksum_errors
+        entry['timestamp'] = time.time()
+
+        return entry
 
     @classmethod
     def is_sampled(cls, key):
