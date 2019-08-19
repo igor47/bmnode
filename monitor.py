@@ -25,9 +25,9 @@ class Monitor:
             # ignore any parent loggers
             datalog.propagate = False
 
-            # add a watched file handler; we expect that logrotate will
-            # rotate the output log
-            handler = logging.handlers.WatchedFileHandler(self.LOG_OUTPUT_FILE)
+            # rotate the files every once in a while to allow files to close
+            handler = logging.handlers.TimedRotatingFileHandler(
+                self.LOG_OUTPUT_FILE, utc=True)
             datalog.addHandler(handler)
 
             # save as root logger
