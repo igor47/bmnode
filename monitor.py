@@ -9,7 +9,7 @@ from devices import DeviceError
 
 class Monitor:
     """Repeatedly logs data from all devices"""
-    LOG_OUTPUT_FILE = "/data/monitor.log"
+    LOG_OUTPUT_FILE = "/data/bmnode/monitor.log"
 
     # avoid logging when we don't have real system time
     MIN_TIMESTAMP = 1565827200  # August 15, 2019 12:00:00 AM
