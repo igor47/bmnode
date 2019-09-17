@@ -37,9 +37,13 @@ class Monitor:
     @property
     def datalog(self) -> logging.Logger:
         if not hasattr(self, "_datalog"):
+            # make sure our destination exists
+            os.makedirs(os.path.dirname(self.LOG_OUTPUT_FILE))
+
+            # grab the data logger
             datalog = logging.getLogger("monitor.data")
 
-            # ignore any parent loggers
+            # ignore any parent loggers -- these lines get written to file ONLY
             datalog.propagate = False
 
             # rotate the files every once in a while to allow files to close
