@@ -1,6 +1,8 @@
 
+from collections import defaultdict
 import json
 import logging.handlers
+import os
 import time
 from typing import Any, Dict, List
 
@@ -8,7 +10,7 @@ from devices import DeviceError
 
 class Monitor:
     """Repeatedly logs data from all devices"""
-    LOG_OUTPUT_FILE = "/data/monitor.log"
+    LOG_OUTPUT_FILE = "/data/bmnode/monitor.log"
 
     # avoid logging when we don't have real system time
     MIN_TIMESTAMP = 1565827200  # August 15, 2019 12:00:00 AM
@@ -17,17 +19,36 @@ class Monitor:
         self.devices = devices
         self.log = logging.getLogger("monitor")
 
+        self.error_counts = defaultdict(lambda: 0)
+
+    @property
+    def has_rtc(self) -> bool:
+        """returns whether an RTC was ever present"""
+        if not hasattr(self, "_has_rtc"):
+            try:
+                os.stat('/dev/rtc0')
+            except FileNotFoundError:
+                self._has_rtc = False
+            else:
+                self._has_rtc = True
+
+        return self._has_rtc
+
     @property
     def datalog(self) -> logging.Logger:
         if not hasattr(self, "_datalog"):
+            # make sure our destination exists
+            os.makedirs(os.path.dirname(self.LOG_OUTPUT_FILE))
+
+            # grab the data logger
             datalog = logging.getLogger("monitor.data")
 
-            # ignore any parent loggers
+            # ignore any parent loggers -- these lines get written to file ONLY
             datalog.propagate = False
 
-            # add a watched file handler; we expect that logrotate will
-            # rotate the output log
-            handler = logging.handlers.WatchedFileHandler(self.LOG_OUTPUT_FILE)
+            # rotate the files every once in a while to allow files to close
+            handler = logging.handlers.TimedRotatingFileHandler(
+                self.LOG_OUTPUT_FILE, utc=True)
             datalog.addHandler(handler)
 
             # save as root logger
@@ -46,6 +67,14 @@ class Monitor:
 
         return float(uptime_parts[0])
 
+    def cpu_temperature(self) -> float:
+        """returns the cpu temperature"""
+        if not hasattr(self, '_cpu_temp_file'):
+            self._cpu_temp_file = open('/sys/class/thermal/thermal_zone0/temp', 'r')
+
+        self._cpu_temp_file.seek(0)
+        return float(self._cpu_temp_file.read().strip())
+
     def build_log_entry(self) -> Dict[str, Any]:
         """Builds a log entry from the monitored devices"""
         entry = {}
@@ -55,9 +84,15 @@ class Monitor:
             except DeviceError as e:
                 self.log.warning(f"error sampling device {device}: {e}")
                 entry[str(device)] = {}
+                self.error_counts[str(device)] += 1
+            else:
+                self.error_counts[str(device)] += 0
 
         entry['timestamp'] = time.time()
         entry['uptime'] = self.uptime()
+        entry['cpu_temperature'] = self.cpu_temperature()
+        entry['error_counts'] = self.error_counts
+        entry['has_rtc'] = self.has_rtc
 
         return entry
 
@@ -65,12 +100,4 @@ class Monitor:
         """Continue generating and persisting log entries"""
         while True:
             entry = self.build_log_entry()
-
-            # basic check to make sure we're not logging bullshit timestamps
-            # (maybe the RTC didn't get initialized yet?)
-            if entry['timestamp'] < self.MIN_TIMESTAMP:
-                self.log.warning(f"timestamp {entry['timestamp']} too small")
-                continue
-
-            # log the entry
             self.datalog.info(json.dumps(entry))
