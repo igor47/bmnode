@@ -1,0 +1,8 @@
+label: dos
+label-id: 0x650ebed2
+device: /dev/sda
+unit: sectors
+
+/dev/sda1 : start=        8192, size=      524289, type=c
+/dev/sda2 : start=      540672, size=     8388608, type=83
+/dev/sda3 : start=     8929280, size=   116045824, type=83
