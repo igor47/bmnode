@@ -17,7 +17,11 @@ class BME280:
         self.log = logging.getLogger(str(self))
 
     def __str__(self):
-        return f"<BME280 on 0x{self.address:x}>"
+        return f"<BME280 on #{self.id}>"
+
+    @property
+    def id(self) -> str:
+        return f"0x{self.address:x}"
 
     @property
     def calibration_params(self) -> bme280.params:

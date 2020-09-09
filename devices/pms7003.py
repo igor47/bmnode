@@ -66,7 +66,11 @@ class PMS7003(object):
         self.checksum_errors = 0
 
     def __str__(self) -> str:
-        return f"<PMS7003 on {self.port}>"
+        return f"<PMS7003 on {self.id}>"
+
+    @property
+    def id(self) -> str:
+        return self.port
 
     @property
     def serial(self) -> serial.Serial:

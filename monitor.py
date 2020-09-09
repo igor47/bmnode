@@ -104,7 +104,8 @@ class Monitor:
 
         # generate tags
         tags = {
-            'device': str(device),
+            'type': device.__class__.__name__,
+            'id': device.id,
             'has_rtc': self.has_rtc,
             'hostname': self.hostname,
         }
