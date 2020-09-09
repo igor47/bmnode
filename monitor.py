@@ -38,7 +38,10 @@ class Monitor:
     def datalog(self) -> logging.Logger:
         if not hasattr(self, "_datalog"):
             # make sure our destination exists
-            os.makedirs(os.path.dirname(self.LOG_OUTPUT_FILE))
+            try:
+                os.makedirs(os.path.dirname(self.LOG_OUTPUT_FILE))
+            except FileExistsError:
+                pass
 
             # grab the data logger
             datalog = logging.getLogger("monitor.data")
