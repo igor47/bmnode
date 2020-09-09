@@ -1,6 +1,5 @@
 
 from collections import defaultdict
-import json
 import logging.handlers
 import os
 import time
@@ -87,7 +86,8 @@ class Monitor:
         self._cpu_temp_file.seek(0)
         return float(self._cpu_temp_file.read().strip())
 
-    def d2str(self, d) -> str:
+    @classmethod
+    def d2str(cls, d) -> str:
         """convert dictionary of key/value pairs to a string"""
         pairs = [f"{k.replace(' ', '_')}={v}" for k,v in d.items()]
         return ",".join(pairs)
