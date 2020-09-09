@@ -10,10 +10,13 @@ from devices import DeviceError
 
 class Monitor:
     """Repeatedly logs data from all devices"""
-    LOG_OUTPUT_FILE = "/data/bmnode/monitor.log"
+    LOG_OUTPUT_FILE = "/data/bmnode/measurements.log"
 
     # avoid logging when we don't have real system time
     MIN_TIMESTAMP = 1565827200  # August 15, 2019 12:00:00 AM
+
+    # the influxdb measurement we're outputting
+    MEASUREMENT = "bmnode"
 
     def __init__(self, devices: List = []):
         self.devices = devices
@@ -59,6 +62,12 @@ class Monitor:
 
         return self._datalog
 
+    @property
+    def hostname(self) -> str:
+        if not hasattr(self, "_hostname"):
+            self._hostname = open("/etc/hostname").read().strip()
+        return self._hostname
+
     def uptime(self) -> float:
         """returns the system uptime, in seconds"""
         # keep the file open to avoid having to re-open it each time
@@ -78,29 +87,50 @@ class Monitor:
         self._cpu_temp_file.seek(0)
         return float(self._cpu_temp_file.read().strip())
 
-    def build_log_entry(self) -> Dict[str, Any]:
-        """Builds a log entry from the monitored devices"""
-        entry = {}
+    def d2str(self, d) -> str:
+        """convert dictionary of key/value pairs to a string"""
+        pairs = [f"{k.replace(' ', '_')}={v}" for k,v in d.items()]
+        return ",".join(pairs)
+
+    def log_influxdb(self, fields, device) -> None:
+        """logs specified fields from device in influxdb format"""
+        # grab timestamp
+        ts = time.time_ns()
+
+        # add common fields we always have for all devices
+        fields['error_counts'] = self.error_counts[str(device)]
+        fields['uptime'] = self.uptime()
+        fields['cpu_temperature'] = self.cpu_temperature()
+
+        # generate tags
+        tags = {
+            'device': str(device),
+            'has_rtc': self.has_rtc,
+            'hostname': self.hostname,
+        }
+
+        # output the log;
+        # https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/
+        self.datalog.info(
+            f"{self.MEASUREMENT},{self.d2str(tags)} {self.d2str(fields)} {ts}"
+        )
+
+    def collect_device(self, device) -> None:
+        """collects data from the specified device"""
+        try:
+            fields = device.sample()
+        except DeviceError as e:
+            self.log.warning(f"error sampling device {device}: {e}")
+            self.error_counts[str(device)] += 1
+        else:
+            self.log_influxdb(fields, device)
+
+    def collect_all(self) -> None:
+        """collects data from the monitored devices"""
         for device in self.devices:
-            try:
-                entry[str(device)] = device.sample()
-            except DeviceError as e:
-                self.log.warning(f"error sampling device {device}: {e}")
-                entry[str(device)] = {}
-                self.error_counts[str(device)] += 1
-            else:
-                self.error_counts[str(device)] += 0
-
-        entry['timestamp'] = time.time()
-        entry['uptime'] = self.uptime()
-        entry['cpu_temperature'] = self.cpu_temperature()
-        entry['error_counts'] = self.error_counts
-        entry['has_rtc'] = self.has_rtc
-
-        return entry
+            self.collect_device(device)
 
     def perform(self) -> Dict[str, Any]:
         """Continue generating and persisting log entries"""
         while True:
-            entry = self.build_log_entry()
-            self.datalog.info(json.dumps(entry))
+            self.collect_all()
