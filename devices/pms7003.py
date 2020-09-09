@@ -131,7 +131,6 @@ class PMS7003(object):
 
         entry = {k: v for k, v in reading._asdict().items() if self.is_sampled(k)}
         entry['checksum_errors'] = self.checksum_errors
-        entry['timestamp'] = time.time()
 
         return entry
 

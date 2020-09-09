@@ -98,7 +98,7 @@ class Monitor:
         ts = time.time_ns()
 
         # add common fields we always have for all devices
-        fields['error_counts'] = self.error_counts[str(device)]
+        fields['read_errors'] = self.error_counts[str(device)]
         fields['uptime'] = self.uptime()
         fields['cpu_temperature'] = self.cpu_temperature()
 
